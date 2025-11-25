@@ -2,12 +2,10 @@ package main
 
 import (
 	"links-cheker-2511/internal/config"
+	"links-cheker-2511/internal/http"
+	"links-cheker-2511/internal/storage"
 	"log/slog"
-	"net/http"
 	"os"
-
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 )
 
 const (
@@ -21,29 +19,17 @@ func main() {
 	log.Info("starting links-checker", slog.String("env", cfg.Env))
 	log.Debug("debug messages are enabled")
 
-	router := chi.NewRouter()
-	router.Use(middleware.RequestID) // работа с middleware и router
-	router.Use(middleware.Logger)
-	router.Use(middleware.Recoverer)
-	router.Use(middleware.URLFormat)
+	sqliteStorage, err := storage.NewStorage(cfg.StoragePath)
+	if err != nil {
+		log.Error("error opening sqlite storage", err)
+		os.Exit(1)
+	}
 
-	router.Post("/links", func(w http.ResponseWriter, r *http.Request) {
-		log.Info("Hi from links checker", r.URL, r.Method, r.Body)
-	})
-	router.Post("/report", func(w http.ResponseWriter, r *http.Request) {
-		log.Info("Hi from links checker", r.URL, r.Method, r.Body)
-	})
+	handlers := http.NewHTTPHandlers(sqliteStorage)
+	httpServer := http.NewHTTPServer(handlers, cfg)
 
 	log.Info("starting server", slog.String("address", cfg.Address))
-
-	srv := &http.Server{
-		Addr:         cfg.Address,
-		Handler:      router,
-		ReadTimeout:  cfg.HTTPServer.Timeout,
-		WriteTimeout: cfg.HTTPServer.Timeout,
-		IdleTimeout:  cfg.HTTPServer.IdleTimeout,
-	}
-	if err := srv.ListenAndServe(); err != nil {
+	if err := httpServer.Start(); err != nil {
 		log.Error("failed to start server", err)
 	}
 
