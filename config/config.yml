@@ -1,0 +1,6 @@
+env: "dev" # dev, prod
+
+server:
+  address: "localhost:8081"
+  timeout: 4s
+  idle_timeout: 60s
