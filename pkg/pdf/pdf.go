@@ -36,7 +36,6 @@ func GeneratePDF(links []storage.Links) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	//defer os.Remove(filename)
 
 	return filename, nil
 }
