@@ -6,8 +6,10 @@ import (
 	"github.com/go-chi/render"
 	"links-cheker-2511/internal/storage"
 	"links-cheker-2511/pkg/link"
+	"links-cheker-2511/pkg/pdf"
 	"log/slog"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 )
@@ -39,10 +41,11 @@ type ErrorResponse struct {
 }
 
 const (
-	StatusError     = "Error"
-	DecodeJSONError = "failed to decode request"
-	SaveUrlsError   = "failed to save urls"
-	GetUrlsError    = "failed to get urls"
+	StatusError      = "Error"
+	DecodeJSONError  = "failed to decode request"
+	SaveUrlsError    = "failed to save urls"
+	GetUrlsError     = "failed to get urls"
+	GeneratePDFError = "failed to generate pdf"
 )
 
 var (
@@ -145,7 +148,18 @@ func (h *HTTPHandlers) HandleGetUrls(w http.ResponseWriter, r *http.Request) {
 		allLinks = append(allLinks, l...)
 	}
 
-	fmt.Println("allLinks", allLinks)
+	filename, err := pdf.GeneratePDF(allLinks)
+	if err != nil {
+		log.Error(GeneratePDFError, wrapError(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		render.JSON(w, r, createErrorResponse(GetUrlsError))
+		return
+	}
+	defer os.Remove(filename)
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	w.WriteHeader(http.StatusOK)
+	http.ServeFile(w, r, filename)
 }
 
 func wrapError(err error) slog.Attr {
