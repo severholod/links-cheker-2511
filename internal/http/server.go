@@ -26,12 +26,8 @@ func (server *HTTPServer) Start() error {
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.URLFormat)
 
-	router.Post("/links", func(w http.ResponseWriter, r *http.Request) {
-		//server.Logger.Info("Hi from links checker", r.URL, r.Method, r.Body)
-	})
-	router.Post("/report", func(w http.ResponseWriter, r *http.Request) {
-		//server.Logger.Info("Hi from links checker", r.URL, r.Method, r.Body)
-	})
+	router.Post("/links", server.HttpHandlers.HandleSaveUrls)
+	router.Post("/report", server.HttpHandlers.HandleGetUrls)
 
 	srv := &http.Server{
 		Addr:         server.Config.Address,

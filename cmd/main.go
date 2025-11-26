@@ -25,7 +25,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	handlers := http.NewHTTPHandlers(sqliteStorage)
+	handlers := http.NewHTTPHandlers(sqliteStorage, log)
 	httpServer := http.NewHTTPServer(handlers, cfg)
 
 	log.Info("starting server", slog.String("address", cfg.Address))

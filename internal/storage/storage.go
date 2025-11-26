@@ -5,10 +5,16 @@ import (
 	"errors"
 	"fmt"
 	_ "github.com/mattn/go-sqlite3"
+	"time"
 )
 
 type Storage struct {
 	db *sql.DB
+}
+
+type Links struct {
+	URL    string
+	Status string
 }
 
 var (
@@ -21,9 +27,15 @@ func NewStorage(storagePath string) (*Storage, error) {
 		return nil, fmt.Errorf("error opening storage: %v", err)
 	}
 
-	stmt, err := db.Prepare(`CREATE TABLE IF NOT EXISTS links (
-    	id INTEGER PRIMARY KEY AUTOINCREMENT,
-    	urls TEXT[] NOT NULL,
+	stmt, err := db.Prepare(`
+		CREATE TABLE IF NOT EXISTS links (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			set_id INTEGER,
+			url TEXT,
+			status TEXT,
+			checked_at DATETIME,
+			FOREIGN KEY(set_id) REFERENCES link_sets(id)
+		);
 	)`)
 	if err != nil {
 		return nil, fmt.Errorf("error preparing links table: %w", err)
@@ -35,35 +47,50 @@ func NewStorage(storagePath string) (*Storage, error) {
 	return &Storage{db}, nil
 }
 
-func (s *Storage) SaveUrls(urls []string) (int64, error) {
-	stmt, err := s.db.Prepare(`INSERT INTO links (urls) VALUES (?)`)
+func (s *Storage) SaveUrl(id int, url string, status string, checked_at time.Time) error {
+	stmt, err := s.db.Prepare(`
+		INSERT INTO links (set_id, url, status, checked_at) VALUES (?, ?, ?, ?);
+	`)
 	if err != nil {
-		return 0, fmt.Errorf("failed to prepare statement: %w", err)
+		return fmt.Errorf("failed to prepare statement: %w", err)
 	}
 	defer func() { _ = stmt.Close() }()
-	res, err := stmt.Exec(urls)
+	_, err = stmt.Exec(id, url, status, checked_at)
 	if err != nil {
-		return 0, fmt.Errorf("failed to save urls: %w", err)
+		return fmt.Errorf("failed to save urls: %w", err)
 	}
-	id, err := res.LastInsertId()
-	if err != nil {
-		return 0, fmt.Errorf("failed to save urls: %w", err)
-	}
-	return id, nil
+
+	return nil
 }
-func (s *Storage) GetUrls(id int64) ([]string, error) {
-	stmt, err := s.db.Prepare(`SELECT urls FROM links WHERE id = ?`)
+func (s *Storage) GetUrls(id int) ([]Links, error) {
+	stmt, err := s.db.Prepare(`SELECT url, status FROM links WHERE set_id = ? ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare statement: %w", err)
 	}
 	defer func() { _ = stmt.Close() }()
-	var res []string
-	err = stmt.QueryRow(id).Scan(&res)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrLinksNotFound
-	}
+
+	rows, err := stmt.Query(id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get urls: %w", err)
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var res []Links
+	for rows.Next() {
+		var link Links
+		err := rows.Scan(&link.URL, &link.Status)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+		res = append(res, link)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during rows iteration: %w", err)
+	}
+
+	if len(res) == 0 {
+		return nil, ErrLinksNotFound
 	}
 
 	return res, nil
