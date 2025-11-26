@@ -29,11 +29,9 @@ func main() {
 	httpServer := http.NewHTTPServer(handlers, cfg)
 
 	log.Info("starting server", slog.String("address", cfg.Address))
-	if err := httpServer.Start(); err != nil {
+	if err := httpServer.Start(log); err != nil {
 		log.Error("failed to start server", err)
 	}
-
-	log.Error("stopped server")
 }
 
 func setupLogger(env string) *slog.Logger {
